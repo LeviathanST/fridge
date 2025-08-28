@@ -77,11 +77,15 @@ pub const PG = opaque {
         return list.toOwnedSlice();
     }
 
+    /// TODO: `pg.zig` just return rows affected from
+    ///       conn.exec() or conn.execOpts().
     pub fn rowsAffected(self: *PG) Error!usize {
         _ = self;
         return rows_affected orelse 0;
     }
 
+    /// This is not available in `pg.zig`, we
+    /// should use `query.raw.returning("id")`.
     pub fn lastInsertRowId(self: *PG) Error!i64 {
         _ = self;
         return 0;
@@ -115,10 +119,10 @@ const PGColumnType = enum {
     T_bytea,
 };
 pub const Stmt = opaque {
-    // NOTE: All values returns
+    /// All values returns
     var result: ?*pg.Result = null;
-    // NOTE: If result.next() is not null, this will be modified
-    //       as a current value
+    /// If `result.next()` is not null, this will be modified
+    /// as a current value
     var row: ?pg.Row = null;
 
     pub fn bind(self: *Stmt, index: usize, arg: Value) Error!void {
@@ -162,7 +166,7 @@ pub const Stmt = opaque {
                 return false;
             return true;
         } else {
-            // NOTE: Result will be deallocated in stmt.deinit() because it
+            // NOTE: Result will be freed in stmt.deinit() because it
             //       is created from Stmt.arena.allocator()
             result = check(
                 *pg.Result,
