@@ -16,14 +16,14 @@ pub const PG = opaque {
     var rows_affected: ?usize = null;
 
     pub fn open(alloc: std.mem.Allocator, opts: Options) !*PG {
-        const pg_conn = try alloc.create(pg.Conn);
+        const pg_conn = alloc.create(pg.Conn) catch @panic("OOM");
         errdefer alloc.destroy(pg_conn);
 
-        pg_conn.* = try pg.Conn.openAndAuth(
+        pg_conn.* = pg.Conn.openAndAuth(
             alloc,
             opts.conn_opts,
             opts.auth_opts,
-        );
+        ) catch return error.ConnectionFailed;
 
         return @ptrCast(@alignCast(pg_conn));
     }
@@ -38,10 +38,13 @@ pub const PG = opaque {
     }
 
     pub fn prepare(self: *PG, sql: []const u8) Error!Statement {
-        errdefer util.log.err("{s} {s}", .{
-            self.ptr().err.?.code,
-            self.ptr().err.?.message,
-        });
+        errdefer if (self.ptr().err) |e| util.log.err(
+            "{s} {s}",
+            .{ e.code, e.message },
+        ) else util.log.err(
+            "Uknown error",
+            .{},
+        );
 
         const alloc = self.ptr()._allocator;
         const transformed_sql = transformSatement(alloc, sql) catch @panic("OOM");
@@ -79,8 +82,19 @@ pub const PG = opaque {
 
     /// TODO: `pg.zig` just return rows affected from
     ///       conn.exec() or conn.execOpts().
-    pub fn rowsAffected(self: *PG) Error!usize {
-        _ = self;
+    ///       What we need:
+    ///       + How can we take **rows affected** variable when we execute
+    ///         statements in `Stmt`?
+    ///       + How to **execute statements** in `Stmt` since all of `conn.exec()`
+    ///         and `conn.execOpts()` need sql string as an arg to run.
+    pub fn rowsAffected(_: *PG) Error!usize {
+        util.log.err(
+            \\This function is not implemented in PG driver.
+            \\If you want to ensure data is existed, you should
+            \\use query.exists() and where() for condition.
+            \\Example: 
+            \\query.where("id", 1).exists()
+        , .{});
         return rows_affected orelse 0;
     }
 
