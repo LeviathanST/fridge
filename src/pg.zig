@@ -199,6 +199,11 @@ pub const Stmt = opaque {
         const alloc = self.ptr().conn._allocator;
 
         result.?.deinit();
+        result.?.drain() catch |err| {
+            std.log.err("Failed to drain PG messages: {}", .{err});
+            self.ptr().conn._state = .fail;
+            return;
+        };
         result = null;
         alloc.destroy(self.ptr());
     }
