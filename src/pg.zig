@@ -181,10 +181,10 @@ pub const Stmt = opaque {
             return true;
         } else {
             // NOTE: the result will be deinit in stmt.deinit()
-            result = check(
+            result = try check(
                 *pg.Result,
                 self.ptr().execute(),
-            ) catch return false;
+            );
             row = (result.?.next() catch return error.DbError) orelse
                 return false;
 
@@ -195,17 +195,23 @@ pub const Stmt = opaque {
     pub fn reset(_: *Stmt) Error!void {}
 
     pub fn deinit(self: *Stmt) void {
-        std.debug.assert(result != null);
         const alloc = self.ptr().conn._allocator;
-
-        result.?.deinit();
-        result.?.drain() catch |err| {
-            std.log.err("Failed to drain PG messages: {}", .{err});
-            self.ptr().conn._state = .fail;
+        if (result) |r| {
+            r.deinit();
+            r.drain() catch |err| {
+                std.log.err("Failed to drain PG messages: {}", .{err});
+                self.ptr().conn._state = .fail;
+                return;
+            };
+            result = null;
+            alloc.destroy(self.ptr());
+        } else {
+            // NOTE: PG error occurs, we should call conn.lastError()
+            //       to identify the error message
+            self.ptr().deinit();
+            alloc.destroy(self.ptr());
             return;
-        };
-        result = null;
-        alloc.destroy(self.ptr());
+        }
     }
 
     pub fn ptr(self: *Stmt) *pg.Stmt {
