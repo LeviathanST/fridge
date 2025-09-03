@@ -133,7 +133,7 @@ const PGColumnType = enum {
     T_bytea,
 };
 pub const Stmt = opaque {
-    /// All values returns
+    /// All values returned and managed by `pg.zig`
     var result: ?*pg.Result = null;
     /// If `result.next()` is not null, this will be modified
     /// as a current value
@@ -180,8 +180,7 @@ pub const Stmt = opaque {
                 return false;
             return true;
         } else {
-            // NOTE: Result will be freed in stmt.deinit() because it
-            //       is created from Stmt.arena.allocator()
+            // NOTE: the result will be deinit in stmt.deinit()
             result = check(
                 *pg.Result,
                 self.ptr().execute(),
@@ -196,8 +195,12 @@ pub const Stmt = opaque {
     pub fn reset(_: *Stmt) Error!void {}
 
     pub fn deinit(self: *Stmt) void {
-        self.ptr().deinit();
-        self.ptr().conn._allocator.destroy(self.ptr());
+        std.debug.assert(result != null);
+        const alloc = self.ptr().conn._allocator;
+
+        result.?.deinit();
+        result = null;
+        alloc.destroy(self.ptr());
     }
 
     pub fn ptr(self: *Stmt) *pg.Stmt {
