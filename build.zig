@@ -43,7 +43,7 @@ pub fn build(b: *std.Build) !void {
         .link_libc = true,
     });
     test_mod.link_objects = lib.link_objects;
-    tests.root_module.addImport("pg", pg_src);
+    test_mod.addImport("pg", pg_src);
     const tests = b.addTest(.{ .root_module = test_mod, .filters = test_filter });
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run tests");
