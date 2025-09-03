@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const bundle = b.option(bool, "bundle", "Bundle SQLite") orelse false;
+    const pg_column_names = b.option(bool, "column-names", "Mapping struct columns by name in pg.zig") orelse true;
 
     const lib = b.addModule("fridge", .{
         .root_source_file = b.path("src/main.zig"),
@@ -11,6 +12,10 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     lib.link_libc = true;
+    const pg_src = b.dependency("pg", .{
+        .column_names = pg_column_names,
+    }).module("pg");
+    lib.addImport("pg", pg_src);
 
     if (bundle) {
         const src = b.dependency("sqlite_source", .{});
@@ -38,6 +43,7 @@ pub fn build(b: *std.Build) !void {
         .link_libc = true,
     });
     test_mod.link_objects = lib.link_objects;
+    test_mod.addImport("pg", pg_src);
     const tests = b.addTest(.{ .root_module = test_mod, .filters = test_filter });
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run tests");

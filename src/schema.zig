@@ -12,9 +12,13 @@ pub const Schema = struct {
         return .{ .db = db };
     }
 
-    pub fn createTable(self: Schema, name: []const u8) *TableBuilder {
+    pub fn createTable(self: Schema, name: []const u8, if_not_exists: bool) *TableBuilder {
         const res = self.db.arena.create(TableBuilder) catch @panic("OOM");
-        res.* = .{ .db = self.db, .table = name };
+        res.* = .{
+            .db = self.db,
+            .table = name,
+            .if_not_exists = if_not_exists,
+        };
         return res;
     }
 
@@ -46,6 +50,7 @@ pub const Schema = struct {
 pub const TableBuilder = struct {
     db: *Session,
     table: []const u8,
+    if_not_exists: bool,
     columns: std.ArrayListUnmanaged(Column) = .{},
     constraints: std.ArrayListUnmanaged(Constraint) = .{},
 
@@ -96,6 +101,9 @@ pub const TableBuilder = struct {
 
     pub fn toSql(self: TableBuilder, buf: *SqlBuf) !void {
         try buf.append("CREATE TABLE ");
+        if (self.if_not_exists) {
+            try buf.append("IF NOT EXISTS ");
+        }
         try buf.appendIdent(self.table);
         try buf.append(" (\n  ");
 
@@ -114,14 +122,16 @@ pub const TableBuilder = struct {
             }
         }
 
+        try buf.append("\n) ");
         if (self.db.conn.dialect() == .sqlite3) {
-            try buf.append("\n) STRICT");
+            try buf.append("STRICT");
         }
     }
 
     pub fn exec(self: *TableBuilder) !void {
         var buf = try SqlBuf.init(self.db.arena);
         try buf.append(self);
+        std.log.debug("Schema execute: \r\n{s}", .{buf.buf.items});
         try self.db.conn.execAll(buf.buf.items);
     }
 

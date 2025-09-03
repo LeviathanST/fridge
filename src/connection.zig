@@ -7,7 +7,7 @@ pub const Connection = struct {
     handle: *anyopaque,
     vtable: *const VTable(*anyopaque),
 
-    pub const Dialect = enum { sqlite3, other };
+    pub const Dialect = enum { sqlite3, postgresql, other };
 
     pub fn VTable(comptime H: type) type {
         return struct {

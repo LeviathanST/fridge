@@ -63,8 +63,12 @@ pub fn Pool(comptime T: type) type {
                 }
 
                 if (self.conns.items.len < self.conns.capacity) {
+                    // NOTE: open the connection before `conns.addOneAssumeCapacity()`
+                    //       to avoid `conn.deinit()` in `pool.deinit()` when error occurs
+                    //       in connection.
+                    const conn = try Connection.open(T, self.conns.allocator, self.conn_opts);
                     const pconn = self.conns.addOneAssumeCapacity();
-                    pconn.* = .{ .pool = self, .conn = try .open(T, self.conns.allocator, self.conn_opts) };
+                    pconn.* = .{ .pool = self, .conn = conn };
                     return util.upcast(pconn, Connection);
                 }
 
