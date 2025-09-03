@@ -33,8 +33,7 @@ pub const PG = opaque {
     }
 
     pub fn execAll(self: *PG, sql: []const u8) Error!void {
-        const raw = (try check(?i64, self.ptr().exec(sql, .{}))).?;
-        rows_affected = @intCast(raw);
+        _ = (try check(?i64, self.ptr().exec(sql, .{})));
     }
 
     pub fn prepare(self: *PG, sql: []const u8) Error!Statement {
@@ -130,6 +129,7 @@ const PGColumnType = enum {
     T_float8,
     T_varchar,
     T_char,
+    T_text,
     T_bytea,
 };
 pub const Stmt = opaque {
@@ -165,7 +165,7 @@ pub const Stmt = opaque {
                 break;
             }
         } else return {
-            util.log.err("{s} is not implemented yet in PG driver.", .{type_name});
+            util.log.err("{s} is not implemented in PG driver yet.", .{type_name});
             return error.DbError;
         };
 
@@ -225,7 +225,7 @@ fn parseValue(pg_type_name: []const u8, row: *const pg.Row, col: usize) !Value {
         .T_int4 => Value{ .int = @intCast(row.get(i32, col)) },
         .T_int8 => Value{ .int = @intCast(row.get(i64, col)) },
         .T_float4, .T_float8 => Value{ .float = row.get(f64, col) },
-        .T_varchar, .T_char => Value{ .string = row.get([]const u8, col) },
+        .T_varchar, .T_char, .T_text => Value{ .string = row.get([]const u8, col) },
         else => .null,
     };
 }
