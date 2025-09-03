@@ -65,19 +65,19 @@ pub const PG = opaque {
 
     /// TODO: should i make this work in query?
     fn transformSatement(alloc: std.mem.Allocator, raw: []const u8) ![]const u8 {
-        var list = std.ArrayList(u8).init(alloc);
-        defer list.deinit();
+        var list = std.array_list.Aligned(u8, null).empty;
+        defer list.deinit(alloc);
         var idx: usize = 1;
 
         for (raw) |c| {
             if (c == '?') {
-                try list.writer().print("${d}", .{idx});
+                try list.writer(alloc).print("${d}", .{idx});
                 idx += 1;
                 continue;
             }
-            try list.append(c);
+            try list.append(alloc, c);
         }
-        return list.toOwnedSlice();
+        return list.toOwnedSlice(alloc);
     }
 
     /// TODO: `pg.zig` just return rows affected from
