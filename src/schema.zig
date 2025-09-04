@@ -470,6 +470,7 @@ pub const TwelveStep = struct {
         var state: TableBuilder = .{
             .db = db,
             .table = TEMP_TABLE,
+            .if_not_exists = false,
         };
 
         const sql = try db
@@ -662,7 +663,7 @@ test "basic create" {
     defer db.deinit();
     const schema = db.schema();
 
-    try schema.createTable("person")
+    try schema.createTable("person", true)
         .id()
         .column("name", .text, .{})
         .column("age", .int, .{})
@@ -685,7 +686,7 @@ test "basic alter" {
     defer db.deinit();
     const schema = db.schema();
 
-    try schema.createTable("person")
+    try schema.createTable("person", false)
         .id()
         .column("age", .int, .{})
         .exec();
@@ -711,14 +712,14 @@ test "advanced create" {
     defer db.deinit();
     const schema = db.schema();
 
-    try schema.createTable("employee")
+    try schema.createTable("employee", true)
         .id()
         .column("name", .text, .{})
         .column("department_id", .int, .{})
         .foreignKey("department_id", "department", .{})
         .exec();
 
-    try schema.createTable("department")
+    try schema.createTable("department", false)
         .id()
         .column("name", .text, .{})
         .exec();
@@ -751,7 +752,7 @@ test "advanced alter" {
     const schema = db.schema();
 
     // Create initial table
-    try schema.createTable("employee")
+    try schema.createTable("employee", false)
         .id()
         .column("name", .text, .{})
         .exec();
@@ -783,7 +784,7 @@ test "advanced alter" {
     );
 
     // Now, let's extract department into its own table
-    try schema.createTable("department")
+    try schema.createTable("department", true)
         .id()
         .column("name", .text, .{})
         .exec();
@@ -843,7 +844,7 @@ test "data migration" {
     const schema = db.schema();
 
     // Create initial table with data
-    try schema.createTable("contacts")
+    try schema.createTable("contacts", false)
         .id()
         .column("name", .text, .{})
         .column("phone", .text, .{})
@@ -888,7 +889,7 @@ test "drop constraints" {
     const schema = db.schema();
 
     // Create initial table
-    try schema.createTable("employee")
+    try schema.createTable("employee", false)
         .id()
         .column("name", .text, .{ .unique = true })
         .column("age", .int, .{})
@@ -897,7 +898,7 @@ test "drop constraints" {
         .foreignKey("department_id", "department", .{})
         .exec();
 
-    try schema.createTable("department")
+    try schema.createTable("department", false)
         .id()
         .column("name", .text, .{})
         .exec();
@@ -989,7 +990,7 @@ test "drop multiple constraints at once" {
     const schema = db.schema();
 
     // Create initial table
-    try schema.createTable("user")
+    try schema.createTable("user", false)
         .id()
         .column("email", .text, .{ .unique = true })
         .column("age", .int, .{})
