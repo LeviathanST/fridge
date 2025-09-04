@@ -1,3 +1,4 @@
+//! TODO: QueryBuilder for each driver?
 const std = @import("std");
 const Session = @import("session.zig").Session;
 const Dialect = @import("connection.zig").Connection.Dialect;
@@ -42,7 +43,6 @@ const Part = struct {
 
 pub const Query = struct {
     db: *Session,
-    dialect: Dialect,
     parts: struct {
         head: ?*const Part = null, //   <raw>, SELECT, INSERT, UPDATE, DELETE
         tables: ?*const Part = null, // JOIN, LEFT JOIN, cols, VALUES, SET
@@ -53,7 +53,6 @@ pub const Query = struct {
     pub fn init(db: *Session) Query {
         return .{
             .db = db,
-            .dialect = db.conn.dialect(),
         };
     }
 
