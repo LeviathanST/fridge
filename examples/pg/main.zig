@@ -51,36 +51,25 @@ pub fn main() !void {
 
     { // Create new `users` table if it not exists
         const schema = s.schema();
-        try schema.createTable(
-            "users",
-            true,
-        ).column(
-            "id",
-            .int,
-            .{ .primary_key = true },
-        ).column(
-            "username",
-            .text,
-            .{ .unique = true },
-        ).column(
-            "password",
-            .text,
-            .{},
-        ).exec();
+        try schema.createTable("users", true)
+            .column("id", .int, .{ .primary_key = true })
+            .column("username", .text, .{ .unique = true })
+            .column("password", .text, .{}).exec();
     }
 
     // Remove a user where `username` = "hoho"
-    try s.query(User).where(
-        "username",
-        "hoho",
-    ).delete().exec();
+    try s.query(User)
+        .where("username", "hoho")
+        .delete()
+        .exec();
 
     // Create a user with `username` = "hoho"
-    try s.query(User).insert(.{
-        .id = 1, // TODO: SERIAL type
-        .username = "hoho",
-        .password = "hoho",
-    }).exec();
+    try s.query(User)
+        .insert(.{
+            .id = 1, // TODO: SERIAL type
+            .username = "hoho",
+            .password = "hoho",
+        }).exec();
 
     // Find a user where `username` = "hoho"
     const maybe_user = try s.query(User).findBy("username", "hoho");
