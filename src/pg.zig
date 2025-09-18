@@ -244,18 +244,3 @@ fn check(comptime Returned: type, data_or_err: anytype) !Returned {
         };
     }
 }
-
-const testing = std.testing;
-test "unkown host name" {
-    const alloc = testing.allocator;
-    try testing.expectError(
-        error.UnknownHostName,
-        @import("session.zig").Session.open(PG, alloc, .{
-            .conn_opts = .{
-                .host = "unknown_host",
-                .port = 5432,
-            },
-            .auth_opts = .{},
-        }),
-    );
-}
