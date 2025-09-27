@@ -9,20 +9,6 @@ const c = @cImport(
     @cInclude("sqlite3.h"),
 );
 
-pub const ColType = enum {
-    integer,
-    text,
-
-    pub const int = ColType.integer;
-
-    pub fn toSql(self: ColType, buf: *@import("sql.zig").SqlBuf) !void {
-        try buf.append(switch (self) {
-            .integer => "INTEGER",
-            .text => "TEXT",
-        });
-    }
-};
-
 pub const SQLite3 = opaque {
     pub const Options = struct {
         dir: ?[]const u8 = null,
@@ -31,6 +17,19 @@ pub const SQLite3 = opaque {
         busy_timeout: ?c_int = 5_000,
         foreign_keys: ?enum { off, on } = .on,
         extensions: []const []const u8 = &.{},
+    };
+    pub const ColType = enum {
+        integer,
+        text,
+
+        pub const int = ColType.integer;
+
+        pub fn toSql(self: ColType, buf: *@import("sql.zig").SqlBuf) !void {
+            try buf.append(switch (self) {
+                .integer => "INTEGER",
+                .text => "TEXT",
+            });
+        }
     };
     pub const DIALECT = Connection.Dialect.sqlite3;
 
