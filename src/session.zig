@@ -1,6 +1,7 @@
 const std = @import("std");
 const sqlite = @import("sqlite.zig");
 const util = @import("util.zig");
+
 const Connection = @import("connection.zig").Connection;
 const Pool = @import("pool.zig").Pool;
 const Statement = @import("statement.zig").Statement;
@@ -9,104 +10,112 @@ const Query = @import("query.zig").Query;
 const Value = @import("value.zig").Value;
 const Schema = @import("schema.zig").Schema;
 
-pub const Session = struct {
-    arena: std.mem.Allocator,
-    conn: Connection,
+pub fn Session(comptime dialect: Connection.Dialect) type {
+    const Driver = dialect.DriverType();
+    return struct {
+        const DialectSession = @This();
 
-    /// Generic shorthand for `Session.init(T.open(allocator, options))`
-    pub fn open(comptime T: type, allocator: std.mem.Allocator, options: T.Options) !Session {
-        const conn = try Connection.open(T, allocator, options);
-        errdefer conn.deinit();
+        arena: std.mem.Allocator,
+        conn: Connection,
 
-        return .init(allocator, conn);
-    }
+        /// Generic shorthand for `Session.init(T.open(allocator, options))`
+        pub fn open(allocator: std.mem.Allocator, opts: Driver.Options) !DialectSession {
+            const conn = try Connection.open(Driver, allocator, opts);
+            errdefer conn.deinit();
 
-    /// Create a new session (taking ownership of the connection)
-    pub fn init(allocator: std.mem.Allocator, conn: Connection) !Session {
-        const arena = try allocator.create(std.heap.ArenaAllocator);
-        arena.* = std.heap.ArenaAllocator.init(allocator);
-
-        return .{
-            .arena = arena.allocator(),
-            .conn = conn,
-        };
-    }
-
-    /// Close the session (including the connection)
-    pub fn deinit(self: *Session) void {
-        const arena: *std.heap.ArenaAllocator = @ptrCast(@alignCast(self.arena.ptr));
-        arena.deinit();
-        arena.child_allocator.destroy(arena);
-
-        self.conn.deinit();
-    }
-
-    pub fn prepare(self: *Session, sql: []const u8, args: anytype) !Statement {
-        var stmt: Statement = try self.conn.prepare(sql);
-        errdefer stmt.deinit();
-
-        inline for (0..args.len) |i| {
-            try stmt.bind(i, try Value.from(args[i], self.arena));
+            return .init(allocator, conn);
         }
 
-        return stmt;
-    }
+        /// Create a new session (taking ownership of the connection)
+        pub fn init(allocator: std.mem.Allocator, conn: Connection) !DialectSession {
+            const arena = try allocator.create(std.heap.ArenaAllocator);
+            arena.* = std.heap.ArenaAllocator.init(allocator);
 
-    // TODO: begin/commit/rollback via self.conn.execAll(...)?
+            return .{
+                .arena = arena.allocator(),
+                .conn = conn,
+            };
+        }
 
-    pub fn exec(self: *Session, sql: []const u8, args: anytype) !void {
-        var stmt = try self.prepare(sql, args);
-        defer stmt.deinit();
+        /// Close the session (including the connection)
+        pub fn deinit(self: *DialectSession) void {
+            const arena: *std.heap.ArenaAllocator = @ptrCast(@alignCast(self.arena.ptr));
+            arena.deinit();
+            arena.child_allocator.destroy(arena);
 
-        try stmt.exec();
-    }
+            self.conn.deinit();
+        }
 
-    pub fn raw(self: *Session, sql: []const u8, args: anytype) RawQuery {
-        return RawQuery.raw(self, sql, args);
-    }
+        pub fn prepare(self: *DialectSession, sql: []const u8, args: anytype) !Statement {
+            var stmt: Statement = try self.conn.prepare(sql);
+            errdefer stmt.deinit();
 
-    pub fn query(self: *Session, comptime T: type) Query(T) {
-        return .init(self);
-    }
+            inline for (0..args.len) |i| {
+                try stmt.bind(i, try Value.from(args[i], self.arena));
+            }
 
-    pub fn schema(self: *Session) Schema {
-        return .init(self);
-    }
+            return stmt;
+        }
 
-    // TODO: this is useless without filter, ordering, paging, ...
-    //       and I'm not sure if we should order by primary key anyway
-    // /// Find all records of the given type.
-    // pub fn findAll(self: *Session, comptime T: type) ![]const T {
-    //     return self.query(T).findAll();
-    // }
+        // TODO: begin/commit/rollback via self.conn.execAll(...)?
 
-    /// Find a record by its primary key.
-    pub fn find(self: *Session, comptime T: type, id: util.Id(T)) !?T {
-        return self.query(T).find(id);
-    }
+        pub fn exec(self: *DialectSession, sql: []const u8, args: anytype) !void {
+            var stmt = try self.prepare(sql, args);
+            defer stmt.deinit();
 
-    /// Shorthand for insert() + find()
-    pub fn create(self: *Session, comptime T: type, data: T) !T {
-        const id = try self.insert(T, data);
-        return try self.find(T, id) orelse unreachable;
-    }
+            try stmt.exec();
+        }
 
-    /// Insert a new record and return its primary key
-    pub fn insert(self: *Session, comptime T: type, data: anytype) !util.Id(T) {
-        try self.query(T).insert(data).exec(); // TODO: returning id?
-        return @intCast(try self.conn.lastInsertRowId());
-    }
+        pub fn raw(self: *DialectSession, sql: []const u8, args: anytype) RawQuery(dialect) {
+            return .raw(self, sql, args);
+        }
 
-    /// Update a record by its primary key.
-    pub fn update(self: *Session, comptime T: type, id: util.Id(T), data: anytype) !void {
-        return self.query(T).where("id", id).update(data).exec();
-    }
+        pub fn query(self: *DialectSession, comptime T: type) Query(T, dialect) {
+            return .init(self);
+        }
 
-    /// Delete a record by its primary key.
-    pub fn delete(self: *Session, comptime T: type, id: util.Id(T)) !void {
-        try self.query(T).where("id", id).delete().exec();
-    }
-};
+        pub fn schema(self: *DialectSession) Schema(dialect) {
+            return switch (dialect) {
+                .other => void,
+                inline else => |_dialect| Schema(_dialect).init(self),
+            };
+        }
+
+        // TODO: this is useless without filter, ordering, paging, ...
+        //       and I'm not sure if we should order by primary key anyway
+        // /// Find all records of the given type.
+        // pub fn findAll(self: *Session, comptime T: type) ![]const T {
+        //     return self.query(T).findAll();
+        // }
+
+        /// Find a record by its primary key.
+        pub fn find(self: *DialectSession, comptime T: type, id: util.Id(T)) !?T {
+            return self.query(T).find(id);
+        }
+
+        /// Shorthand for insert() + find()
+        pub fn create(self: *DialectSession, comptime T: type, data: T) !T {
+            const id = try self.insert(T, data);
+            return try self.find(T, id) orelse unreachable;
+        }
+
+        /// Insert a new record and return its primary key
+        pub fn insert(self: *DialectSession, comptime T: type, data: anytype) !util.Id(T) {
+            try self.query(T).insert(data).exec(); // TODO: returning id?
+            return @intCast(try self.conn.lastInsertRowId());
+        }
+
+        /// Update a record by its primary key.
+        pub fn update(self: *DialectSession, comptime T: type, id: util.Id(T), data: anytype) !void {
+            return self.query(T).where("id", id).update(data).exec();
+        }
+
+        /// Delete a record by its primary key.
+        pub fn delete(self: *DialectSession, comptime T: type, id: util.Id(T)) !void {
+            try self.query(T).where("id", id).delete().exec();
+        }
+    };
+}
 
 const t = std.testing;
 const createDb = @import("testing.zig").createDb;
