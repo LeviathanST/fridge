@@ -337,10 +337,7 @@ pub fn Column(comptime dialect: Dialect) type {
 }
 
 pub inline fn ColumnType(comptime dialect: Dialect) type {
-    return switch (dialect) {
-        .sqlite3 => @import("sqlite.zig").ColType,
-        .other => void,
-    };
+    return dialect.DriverType().DIALECT;
 }
 
 pub const ColumnOptions = struct {
