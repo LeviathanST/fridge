@@ -9,6 +9,20 @@ const c = @cImport(
     @cInclude("sqlite3.h"),
 );
 
+pub const ColType = enum {
+    integer,
+    text,
+
+    pub const int = ColType.integer;
+
+    pub fn toSql(self: ColType, buf: *@import("sql.zig").SqlBuf) !void {
+        try buf.append(switch (self) {
+            .integer => "INTEGER",
+            .text => "TEXT",
+        });
+    }
+};
+
 pub const SQLite3 = opaque {
     pub const Options = struct {
         dir: ?[]const u8 = null,
@@ -18,6 +32,7 @@ pub const SQLite3 = opaque {
         foreign_keys: ?enum { off, on } = .on,
         extensions: []const []const u8 = &.{},
     };
+    pub const DIALECT = Connection.Dialect.sqlite3;
 
     pub fn open(allocator: std.mem.Allocator, options: Options) !*SQLite3 {
         if (options.dir) |dir| {
@@ -86,7 +101,7 @@ pub const SQLite3 = opaque {
     }
 
     pub fn dialect(_: *SQLite3) Connection.Dialect {
-        return .sqlite3;
+        return DIALECT;
     }
 
     pub fn execAll(self: *SQLite3, sql: []const u8) !void {
