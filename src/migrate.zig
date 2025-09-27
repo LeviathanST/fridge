@@ -3,12 +3,14 @@
 // different
 
 const std = @import("std");
-const SQLite3 = @import("sqlite.zig").SQLite3;
+const Dialect = @import("connection.zig").Connection.Dialect;
 const Session = @import("session.zig").Session;
 const log = std.log.scoped(.db_migrate);
 
-pub fn migrate(db: *Session, ddl: []const u8) !void {
-    var pristine = try Session.open(SQLite3, db.arena, .{ .filename = ":memory:" });
+const SQLite3Session = Session(.sqlite3);
+
+pub fn migrate(db: *SQLite3Session, ddl: []const u8) !void {
+    var pristine = try SQLite3Session.open(db.arena, .{ .filename = ":memory:" });
     defer pristine.deinit();
 
     // Create empty database with the desired schema
@@ -34,7 +36,7 @@ pub fn migrate(db: *Session, ddl: []const u8) !void {
     try db.conn.execAll("PRAGMA foreign_keys = ON");
 }
 
-fn migrateObjects(db: *Session, pristine: *Session, kind: []const u8) !void {
+fn migrateObjects(db: *SQLite3Session, pristine: *SQLite3Session, kind: []const u8) !void {
     for (try sqlite_master.objects(pristine, kind)) |obj| {
         // Check if object exists
         const curr = try db.query(sqlite_master).where("type", kind).findBy("name", obj.name) orelse {
@@ -106,7 +108,7 @@ const sqlite_master = struct {
     name: []const u8,
     sql: []const u8,
 
-    fn objects(db: *Session, kind: []const u8) ![]const sqlite_master {
+    fn objects(db: *SQLite3Session, kind: []const u8) ![]const sqlite_master {
         return db.query(sqlite_master)
             .where("type", kind)
             .whereRaw("name NOT LIKE ?", .{"sqlite_%"})
