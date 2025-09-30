@@ -1,20 +1,25 @@
 const std = @import("std");
 const util = @import("util.zig");
 const Value = @import("value.zig").Value;
+const Dialect = @import("connection.zig").Connection.Dialect;
 const Session = @import("session.zig").Session;
 const RawQuery = @import("raw.zig").Query;
 const Statement = @import("statement.zig").Statement;
 const SqlBuf = @import("sql.zig").SqlBuf;
 
-pub fn Query(comptime T: type) type {
+pub fn Query(
+    comptime T: type,
+    comptime dialect: Dialect,
+) type {
+    const DialectRawQuery = RawQuery(dialect);
     return struct {
-        raw: RawQuery,
+        raw: DialectRawQuery,
 
         const Q = @This();
         const Col = std.meta.FieldEnum(T);
 
-        pub fn init(db: *Session) Q {
-            return .{ .raw = RawQuery.init(db).select(util.columns(T)).table(util.tableName(T)) };
+        pub fn init(db: *Session(dialect)) Q {
+            return .{ .raw = DialectRawQuery.init(db).select(util.columns(T)).table(util.tableName(T)) };
         }
 
         pub fn from(self: Q, sql: []const u8) Q {
@@ -117,7 +122,7 @@ pub fn Query(comptime T: type) type {
             return self.raw.fetchAll(T);
         }
 
-        pub fn select(self: Q, sql: []const u8) RawQuery {
+        pub fn select(self: Q, sql: []const u8) DialectRawQuery {
             return self.raw.select(sql);
         }
 
@@ -125,23 +130,23 @@ pub fn Query(comptime T: type) type {
             return self.select(col).pluck(util.ColType(T, col));
         }
 
-        pub fn groupBy(self: Q, sql: []const u8) RawQuery {
+        pub fn groupBy(self: Q, sql: []const u8) DialectRawQuery {
             return self.raw.groupBy(sql);
         }
 
-        pub fn insert(self: Q, data: anytype) RawQuery {
+        pub fn insert(self: Q, data: anytype) DialectRawQuery {
             comptime util.checkFields(T, @TypeOf(data));
 
             return self.raw.insert().cols(comptime "(" ++ util.columns(@TypeOf(data)) ++ ")").values(comptime "(" ++ util.placeholders(@TypeOf(data)) ++ ")", data);
         }
 
-        pub fn update(self: Q, data: anytype) RawQuery {
+        pub fn update(self: Q, data: anytype) DialectRawQuery {
             comptime util.checkFields(T, @TypeOf(data));
 
             return self.raw.update().setAll(data);
         }
 
-        pub fn delete(self: Q) RawQuery {
+        pub fn delete(self: Q) DialectRawQuery {
             return self.raw.delete();
         }
 

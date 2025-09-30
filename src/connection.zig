@@ -7,7 +7,17 @@ pub const Connection = struct {
     handle: *anyopaque,
     vtable: *const VTable(*anyopaque),
 
-    pub const Dialect = enum { sqlite3, other };
+    pub const Dialect = enum {
+        sqlite3,
+        other,
+
+        pub fn DriverType(comptime tag: Dialect) type {
+            return switch (tag) {
+                .other => @import("testing.zig").TestConn,
+                inline else => @import("sqlite.zig").SQLite3,
+            };
+        }
+    };
 
     pub fn VTable(comptime H: type) type {
         return struct {

@@ -18,6 +18,9 @@ pub const PoolOptions = struct {
 /// pinned/never moved. Pinning is better, because the pool can still be
 /// referenced when `deinit()` is being called - it will just fail.
 pub fn Pool(comptime T: type) type {
+    if (!@hasDecl(T, "DIALECT"))
+        @compileError(std.fmt.comptimePrint("Not found `DIALECT` in the `{s}` driver!", .{@typeName(T)}));
+
     return struct {
         conns: std.array_list.Managed(PoolConnection(T)),
         conn_opts: T.Options,
@@ -35,7 +38,7 @@ pub fn Pool(comptime T: type) type {
             };
         }
 
-        pub fn getSession(self: *@This(), allocator: std.mem.Allocator) Error!Session {
+        pub fn getSession(self: *@This(), allocator: std.mem.Allocator) Error!Session(T.DIALECT) {
             return .init(allocator, try self.getConnection());
         }
 
