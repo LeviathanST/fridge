@@ -9,6 +9,7 @@ pub const Connection = struct {
 
     pub const Dialect = enum {
         sqlite3,
+        postgresql,
         other,
 
         pub fn DriverType(comptime tag: Dialect) type {

@@ -16,5 +16,9 @@
             .url = "https://sqlite.org/2025/sqlite-autoconf-3490100.tar.gz",
             .hash = "N-V-__8AAPmiwQDYOF242Pnl0pUbyqdyr4Rq43HQqlgvoeZG",
         },
+        .pg = .{
+            .url = "git+https://github.com/karlseguin/pg.zig?ref=master#f930e90b735ebadf28244c7a31e9c442b264b544",
+            .hash = "pg-0.0.0-Wp_7gfoJBgDfkQBaWRTwjYcTdNyS8UHRDmMTs4NuSmxY",
+        },
     },
 }

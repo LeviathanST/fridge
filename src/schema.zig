@@ -9,11 +9,21 @@ const SqlBuf = @import("sql.zig").SqlBuf;
 pub fn Schema(comptime dialect: Dialect) type {
     return struct {
         db: *Session(dialect),
-
+        
         pub fn init(db: *Session(dialect)) @This() {
             return .{ .db = db };
         }
 
+        pub fn createTable(self: Schema, name: []const u8, if_not_exists: bool) *TableBuilder {
+            const res = self.db.arena.create(TableBuilder) catch @panic("OOM");
+            res.* = .{
+                .db = self.db,
+                .table = name,
+                .if_not_exists = if_not_exists,
+            };
+            return res;
+        }
+        
         pub fn createTable(self: @This(), name: []const u8) *TableBuilder(dialect) {
             const res = self.db.arena.create(TableBuilder(dialect)) catch @panic("OOM");
             res.* = .{ .db = self.db, .table = name };
@@ -40,7 +50,6 @@ pub fn Schema(comptime dialect: Dialect) type {
             var buf = try SqlBuf.init(self.db.arena);
             try buf.append("DROP TABLE ");
             try buf.appendIdent(name);
-
             try self.db.conn.execAll(buf.buf.items);
         }
     };
@@ -52,6 +61,7 @@ pub fn TableBuilder(comptime dialect: Dialect) type {
 
         db: *Session(dialect),
         table: []const u8,
+        if_not_exists: bool,
         columns: std.ArrayListUnmanaged(Column(dialect)) = .{},
         constraints: std.ArrayListUnmanaged(Constraint) = .{},
 
@@ -104,8 +114,17 @@ pub fn TableBuilder(comptime dialect: Dialect) type {
             return self.append("constraints", @unionInit(Constraint, @tagName(kind), body));
         }
 
+        pub fn exec(self: *TableBuilder) !void {
+            var buf = try SqlBuf.init(self.db.arena);
+            try buf.append(self);
+            std.log.debug("Schema execute: \r\n{s}", .{buf.buf.items});
+            try self.db.conn.execAll(buf.buf.items);
+        }
         pub fn toSql(self: TypedTableBuilder, buf: *SqlBuf) !void {
             try buf.append("CREATE TABLE ");
+            if (self.if_not_exists) {
+                try buf.append("IF NOT EXISTS ");
+            }
             try buf.appendIdent(self.table);
             try buf.append(" (\n  ");
 
@@ -484,6 +503,7 @@ pub fn TwelveStep(comptime dialect: Dialect) type {
             var state: TableBuilder(dialect) = .{
                 .db = db,
                 .table = TEMP_TABLE,
+                .if_not_exists = false,
             };
 
             const sql = try db
@@ -677,7 +697,7 @@ test "basic create" {
     defer db.deinit();
     const schema = db.schema();
 
-    try schema.createTable("person")
+    try schema.createTable("person", true)
         .id()
         .column("name", .text, .{})
         .column("age", .int, .{})
@@ -700,7 +720,7 @@ test "basic alter" {
     defer db.deinit();
     const schema = db.schema();
 
-    try schema.createTable("person")
+    try schema.createTable("person", false)
         .id()
         .column("age", .int, .{})
         .exec();
@@ -726,14 +746,14 @@ test "advanced create" {
     defer db.deinit();
     const schema = db.schema();
 
-    try schema.createTable("employee")
+    try schema.createTable("employee", true)
         .id()
         .column("name", .text, .{})
         .column("department_id", .int, .{})
         .foreignKey("department_id", "department", .{})
         .exec();
 
-    try schema.createTable("department")
+    try schema.createTable("department", false)
         .id()
         .column("name", .text, .{})
         .exec();
@@ -766,7 +786,7 @@ test "advanced alter" {
     const schema = db.schema();
 
     // Create initial table
-    try schema.createTable("employee")
+    try schema.createTable("employee", false)
         .id()
         .column("name", .text, .{})
         .exec();
@@ -798,7 +818,7 @@ test "advanced alter" {
     );
 
     // Now, let's extract department into its own table
-    try schema.createTable("department")
+    try schema.createTable("department", true)
         .id()
         .column("name", .text, .{})
         .exec();
@@ -858,7 +878,7 @@ test "data migration" {
     const schema = db.schema();
 
     // Create initial table with data
-    try schema.createTable("contacts")
+    try schema.createTable("contacts", false)
         .id()
         .column("name", .text, .{})
         .column("phone", .text, .{})
@@ -903,7 +923,7 @@ test "drop constraints" {
     const schema = db.schema();
 
     // Create initial table
-    try schema.createTable("employee")
+    try schema.createTable("employee", false)
         .id()
         .column("name", .text, .{ .unique = true })
         .column("age", .int, .{})
@@ -912,7 +932,7 @@ test "drop constraints" {
         .foreignKey("department_id", "department", .{})
         .exec();
 
-    try schema.createTable("department")
+    try schema.createTable("department", false)
         .id()
         .column("name", .text, .{})
         .exec();
@@ -1004,7 +1024,7 @@ test "drop multiple constraints at once" {
     const schema = db.schema();
 
     // Create initial table
-    try schema.createTable("user")
+    try schema.createTable("user", false)
         .id()
         .column("email", .text, .{ .unique = true })
         .column("age", .int, .{})
