@@ -4,8 +4,8 @@ const Session = @import("session.zig").Session;
 const Statement = @import("statement.zig").Statement;
 const SqlBuf = @import("sql.zig").SqlBuf;
 
-pub fn createDb(ddl: []const u8) !Session {
-    var db = try Session.open(@import("sqlite.zig").SQLite3, std.testing.allocator, .{ .filename = ":memory:" });
+pub fn createDb(ddl: []const u8) !Session(.sqlite3) {
+    var db = try Session(.sqlite3).open(std.testing.allocator, .{ .filename = ":memory:" });
     errdefer db.deinit();
 
     try db.conn.execAll(ddl);
@@ -13,8 +13,8 @@ pub fn createDb(ddl: []const u8) !Session {
     return db;
 }
 
-pub fn fakeDb() !Session {
-    return Session.open(TestConn, std.testing.allocator, {});
+pub fn fakeDb() !Session(.other) {
+    return .open(std.testing.allocator, {});
 }
 
 pub fn expectSql(q: anytype, expected: []const u8) !void {
@@ -25,7 +25,7 @@ pub fn expectSql(q: anytype, expected: []const u8) !void {
     try std.testing.expectEqualStrings(expected, buf.buf.items);
 }
 
-pub fn expectDdl(db: *Session, object_name: []const u8, expected: []const u8) !void {
+pub fn expectDdl(db: *Session(.sqlite3), object_name: []const u8, expected: []const u8) !void {
     try std.testing.expectEqualStrings(
         expected,
         (try db.raw("SELECT sql FROM sqlite_master", {}).where("name = ?", object_name).get([]const u8)).?,
@@ -36,6 +36,7 @@ pub const TestConn = struct {
     id: u32,
 
     pub const Options = void;
+    pub const DIALECT = Connection.Dialect.other;
 
     pub var created: std.atomic.Value(u32) = .{ .raw = 0 };
     pub var destroyed: std.atomic.Value(u32) = .{ .raw = 0 };
