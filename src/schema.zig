@@ -9,24 +9,18 @@ const SqlBuf = @import("sql.zig").SqlBuf;
 pub fn Schema(comptime dialect: Dialect) type {
     return struct {
         db: *Session(dialect),
-        
+
         pub fn init(db: *Session(dialect)) @This() {
             return .{ .db = db };
         }
 
-        pub fn createTable(self: Schema, name: []const u8, if_not_exists: bool) *TableBuilder {
-            const res = self.db.arena.create(TableBuilder) catch @panic("OOM");
+        pub fn createTable(self: @This(), name: []const u8, if_not_exists: bool) *TableBuilder(dialect) {
+            const res = self.db.arena.create(TableBuilder(dialect)) catch @panic("OOM");
             res.* = .{
                 .db = self.db,
                 .table = name,
                 .if_not_exists = if_not_exists,
             };
-            return res;
-        }
-        
-        pub fn createTable(self: @This(), name: []const u8) *TableBuilder(dialect) {
-            const res = self.db.arena.create(TableBuilder(dialect)) catch @panic("OOM");
-            res.* = .{ .db = self.db, .table = name };
             return res;
         }
 
@@ -114,12 +108,6 @@ pub fn TableBuilder(comptime dialect: Dialect) type {
             return self.append("constraints", @unionInit(Constraint, @tagName(kind), body));
         }
 
-        pub fn exec(self: *TableBuilder) !void {
-            var buf = try SqlBuf.init(self.db.arena);
-            try buf.append(self);
-            std.log.debug("Schema execute: \r\n{s}", .{buf.buf.items});
-            try self.db.conn.execAll(buf.buf.items);
-        }
         pub fn toSql(self: TypedTableBuilder, buf: *SqlBuf) !void {
             try buf.append("CREATE TABLE ");
             if (self.if_not_exists) {

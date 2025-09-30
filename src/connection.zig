@@ -15,7 +15,11 @@ pub const Connection = struct {
         pub fn DriverType(comptime tag: Dialect) type {
             return switch (tag) {
                 .other => @import("testing.zig").TestConn,
-                inline else => @import("sqlite.zig").SQLite3,
+                inline else => |d| switch (d) {
+                    .sqlite3 => @import("sqlite.zig").SQLite3,
+                    .postgresql => @import("pg.zig").PG,
+                    else => unreachable,
+                },
             };
         }
     };
