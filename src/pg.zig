@@ -13,7 +13,21 @@ pub const PG = opaque {
         conn_opts: pg.Conn.Opts,
         auth_opts: pg.Conn.AuthOpts,
     };
+    pub const ColType = enum {
+        integer,
+        text,
+
+        pub const int = ColType.integer;
+
+        pub fn toSql(self: ColType, buf: *@import("sql.zig").SqlBuf) !void {
+            try buf.append(switch (self) {
+                .integer => "INTEGER",
+                .text => "TEXT",
+            });
+        }
+    };
     var rows_affected: ?usize = null;
+    pub const DIALECT: Dialect = .postgresql;
 
     pub fn open(alloc: std.mem.Allocator, opts: Options) !*PG {
         const pg_conn = alloc.create(pg.Conn) catch @panic("OOM");
@@ -29,7 +43,7 @@ pub const PG = opaque {
     }
 
     pub fn dialect(_: *PG) Dialect {
-        return .postgresql;
+        return DIALECT;
     }
 
     pub fn execAll(self: *PG, sql: []const u8) Error!void {
